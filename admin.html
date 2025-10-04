@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Panel de Administración – Biblioteca Académica</title>
+<style>
+  body{margin:0;font-family:system-ui;background:#0b1220;color:#e5e7eb}
+  .page{max-width:800px;margin:20px auto;padding:20px;border:2px solid #3b82f6;
+        border-radius:16px;box-shadow:0 0 12px #3b82f6,0 0 28px rgba(59,130,246,.35)}
+  h1{text-align:center;font-size:1.3rem;margin-bottom:20px}
+  input,button{padding:10px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#e5e7eb}
+  button{background:#3b82f6;border:0;cursor:pointer;margin:5px}
+  button:hover{filter:brightness(1.1)}
+  table{width:100%;border-collapse:collapse;margin-top:15px}
+  th,td{border:1px solid #334155;padding:8px;text-align:left}
+  th{background:#1e293b}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Panel de Administración – Biblioteca Académica</h1>
+
+  <!-- Login de administrador -->
+  <div id="adminLogin">
+    <p>Ingrese la clave de administrador:</p>
+    <input id="adminPass" type="password" placeholder="Clave de administrador"/>
+    <button id="btnAdminLogin">Ingresar</button>
+  </div>
+
+  <!-- Panel principal -->
+  <div id="panel" class="hidden">
+    <h3>Gestión de usuarios</h3>
+    <div>
+      <input id="user" placeholder="Usuario (ej: ayudante)"/>
+      <input id="pass" placeholder="Contraseña"/>
+      <input id="display" placeholder="Nombre visible (ej: Ayudante de Biblioteca)"/>
+      <button id="addUser">Agregar usuario</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Usuario</th><th>Nombre visible</th><th>Acción</th></tr>
+      </thead>
+      <tbody id="userTable"></tbody>
+    </table>
+    <br>
+    <button id="btnVolver">Volver al sistema</button>
+  </div>
+</div>
+
+<script>
+const ADMIN_KEY="admin2025";
+
+const $=s=>document.querySelector(s);
+function getUsers(){
+  return JSON.parse(localStorage.getItem("users")||"[]");
+}
+function saveUsers(u){
+  localStorage.setItem("users",JSON.stringify(u));
+}
+
+/* Login administrador */
+$("#btnAdminLogin").onclick=()=>{
+  const p=$("#adminPass").value;
+  if(p===ADMIN_KEY){
+    $("#adminLogin").classList.add("hidden");
+    $("#panel").classList.remove("hidden");
+    renderUsers();
+  }else alert("Clave incorrecta");
+};
+
+/* Mostrar usuarios */
+function renderUsers(){
+  const list=getUsers();
+  const tbody=$("#userTable");
+  tbody.innerHTML="";
+  if(list.length===0){
+    tbody.innerHTML="<tr><td colspan='3'>No hay usuarios registrados</td></tr>";
+    return;
+  }
+  list.forEach((u,i)=>{
+    const row=document.createElement("tr");
+    row.innerHTML=`<td>${u.user}</td><td>${u.display}</td>
+      <td><button onclick="deleteUser(${i})">Eliminar</button></td>`;
+    tbody.appendChild(row);
+  });
+}
+
+/* Agregar usuario */
+$("#addUser").onclick=()=>{
+  const user=$("#user").value.trim();
+  const pass=$("#pass").value.trim();
+  const display=$("#display").value.trim();
+  if(!user||!pass||!display){alert("Complete todos los campos");return;}
+  const list=getUsers();
+  if(list.find(u=>u.user===user)){alert("Ese usuario ya existe.");return;}
+  list.push({user,pass,display});
+  saveUsers(list);
+  $("#user").value=$("#pass").value=$("#display").value="";
+  renderUsers();
+};
+
+/* Eliminar usuario */
+function deleteUser(index){
+  if(confirm("¿Eliminar este usuario?")){
+    const list=getUsers();
+    list.splice(index,1);
+    saveUsers(list);
+    renderUsers();
+  }
+}
+
+/* Volver al sistema */
+$("#btnVolver").onclick=()=>window.location.href="index.html";
+
+/* Crear usuario inicial si no existe */
+window.onload=()=>{
+  const list=getUsers();
+  if(!list.find(u=>u.user==="bibliotecaria")){
+    list.push({user:"bibliotecaria",pass:"biblioteca2025",display:"Bibliotecaria"});
+    saveUsers(list);
+  }
+};
+</script>
+</body>
+</html>

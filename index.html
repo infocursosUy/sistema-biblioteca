@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Sistema de Gestión: Biblioteca Académica - SisWeb-V0.111-2025</title>
+
+<!-- EmailJS -->
+<script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+<script>
+ (function(){
+   emailjs.init("4DRzzIXtWkf_GXNbL"); // 👈 Public Key
+ })();
+</script>
+
+<style>
+  body{margin:0;background:#0b1220;color:#e5e7eb;font-family:system-ui}
+  .page{max-width:1000px;margin:20px auto;padding:16px;border:2px solid #3b82f6;
+        border-radius:16px;box-shadow:0 0 12px #3b82f6,0 0 28px rgba(59,130,246,.35)}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  h1{margin:0;font-size:1.15rem}
+  #btnLogout{background:#ef4444;border:none;border-radius:8px;padding:8px 14px;color:#fff;cursor:pointer}
+  #btnLogout:hover{filter:brightness(1.2)}
+  input,button{padding:10px;border-radius:10px;border:1px solid #334155;background:#0b1220;color:#e5e7eb}
+  button{background:#3b82f6;border:0;cursor:pointer;margin:4px}
+  button:hover{filter:brightness(1.1)}
+  .card{background:#0f172a;border:1px solid #1f2937;border-radius:12px;padding:14px;margin-top:12px}
+  #console{width:80%;height:220px;background:#0b1220;border:1px solid #334155;border-radius:10px;padding:10px;overflow-y:auto;font-family:monospace;font-size:0.9rem;white-space:pre-wrap}
+  .log-time{color:#22c55e}.log-user{color:#ef4444}.log-text{color:#e5e7eb}
+  #btnLimpiar{position:absolute;top:10px;right:14px;background:#3b82f6;border:none;border-radius:10px;padding:6px 10px;font-size:.85rem}
+  footer{text-align:right;margin-top:16px;color:#fff;font-size:12px;opacity:.9}
+  .hidden{display:none}
+  .btn-group{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Sistema de Gestión: Biblioteca Académica - SisWeb-V0.112-2025</h1>
+   <div style="text-align:right">
+    <button id="btnLogout" class="hidden">Cerrar sesión</button><br>
+    <span id="usuarioActivo" class="hidden" style="font-size:0.9rem;color:#9ca3af"></span>
+   </div>
+  </header>
+
+  <!-- Login -->
+<section id="login" class="card" style="text-align:center">
+  <input id="user" type="text" placeholder="Usuario"/><br><br>
+  <input id="pass" type="password" placeholder="Contraseña"/><br><br>
+  <button id="btnLogin">Ingresar</button><br><br>
+  <a href="admin.html" target="_blank" style="font-size:0.9rem;color:#60a5fa;text-decoration:none">
+    🔑 Acceder al panel de administración
+  </a>
+</section>
+
+
+  <!-- App -->
+  <section id="app" class="hidden">
+    <div class="card">
+      <input id="fileInput" type="file" accept=".xlsx,.xls"/>
+      <button id="btnCargar">Cargar Excel</button><br><br>
+      <input id="userId" type="text" placeholder="ID de usuario (p. ej., 594)"/>
+      <div class="btn-group">
+        <button id="btnI2">Consultar adeudos por ID</button>
+        <button id="btnI3all">Historial – ver todo</button>
+        <button id="btnI3id">Historial – filtrar por ID</button>
+        <button id="btnMail">Enviar e-mail</button>
+        <button id="btnI3txt">Exportar historial .txt</button>
+        <button id="btnXlsx">Descargar morosos.xlsx</button>
+        <button id="btnPrueba">Agregar PRUEBA</button>
+      </div>
+    </div>
+    <div class="card" style="position:relative">
+      <label>Consola</label>
+      <button id="btnLimpiar">Limpiar</button>
+      <div id="console"></div>
+    </div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+const USERS = JSON.parse(localStorage.getItem("users") || "[]");
+const $=s=>document.querySelector(s);
+const log=(msg,type="text")=>{
+  const c=$("#console");const line=document.createElement("div");
+  if(type==="time") line.innerHTML=`<span class="log-time">${msg}</span>`;
+  else if(type==="user") line.innerHTML=`<span class="log-user">${msg}</span>`;
+  else line.innerHTML=`<span class="log-text">${msg}</span>`;
+  c.appendChild(line);c.scrollTop=c.scrollHeight;session.trace.push(msg);
+};
+const session={user:"",trace:[],users:new Map(),searchedNoRecords:new Set(),invalidEmails:new Set()};
+
+/* Login */
+$("#btnLogin").onclick=()=>{
+  const u=$("#user").value,p=$("#pass").value;
+  if(u==="bibliotecaria"&&p==="biblioteca2025"){
+    session.user="Bibliotecaria";
+    $("#login").classList.add("hidden");$("#app").classList.remove("hidden");
+    $("#btnLogout").classList.remove("hidden");
+    $("#usuarioActivo").classList.remove("hidden");
+    $("#usuarioActivo").textContent="Usuario activo: "+session.user;
+    log(`[${new Date().toLocaleString()}]`,"time");
+    log("Sesión iniciada por Bibliotecaria");
+  } else alert("Usuario o contraseña inválidos.");
+};
+
+/* Logout */
+$("#btnLogout").onclick=()=>{
+  if(confirm("¿Cerrar sesión? Se borrarán los datos cargados.")){
+    rows=[];session.trace=[];session.users.clear();session.searchedNoRecords.clear();session.invalidEmails.clear();
+    $("#console").innerHTML="";
+    $("#app").classList.add("hidden");
+    $("#login").classList.remove("hidden");
+    $("#btnLogout").classList.add("hidden");
+    $("#usuarioActivo").classList.add("hidden");
+    $("#usuarioActivo").textContent="";
+    $("#user").value="";$("#pass").value="";
+    log(`[${new Date().toLocaleString()}]`,"time");
+    log("Sesión cerrada correctamente");
+  }
+};
+
+
+/* Limpiar consola */
+$("#btnLimpiar").onclick=()=>$("#console").innerHTML="";
+
+/* Cargar Excel */
+let rows=[];
+$("#btnCargar").onclick=async()=>{
+ const f=$("#fileInput").files[0];if(!f)return alert("Elegí un Excel");
+ const ab=await f.arrayBuffer();const wb=XLSX.read(ab,{type:"array"});
+ const ws=wb.Sheets[wb.SheetNames[0]];rows=XLSX.utils.sheet_to_json(ws,{defval:""});
+ log(`[${new Date().toLocaleString()}]`,"time");log(`Excel cargado (${rows.length} filas)`);
+};
+
+/* Consultar adeudos */
+function opConsultarAdeudos(){
+ if(!rows.length)return alert("Cargá el Excel.");
+ const uid=$("#userId").value.trim();if(!uid)return alert("Ingresá un ID.");
+ const rUser=rows.filter(r=>String(r.id_empr)===uid);
+ log(`[${new Date().toLocaleString()}]`,"time");
+ if(!rUser.length){log(`ID: ${uid}`,"user");log("Sin registros.");session.searchedNoRecords.add(uid);return;}
+ const nom=(rUser[0].empr_nom||"")+" "+(rUser[0].empr_prenom||"");
+ const mail=rUser[0].empr_mail||"";const adeudos=rUser.filter(r=>parseInt(r.retard||0)>0);
+ log(`ID: ${uid}`,"user");log(`Nombre: ${nom}`);log(`Mail: ${mail}`);log(`Adeudos: ${adeudos.length}`);
+ adeudos.forEach(r=>log(` • ${r.expl_cb} – ${r.tit} (${r.retard} día(s) de atraso)`));
+ session.users.set(uid,{uid,nombre:nom.trim(),mail,items:adeudos.map(r=>({libro:r.expl_cb,titulo:r.tit,atraso:r.retard})),overdueCount:adeudos.length});
+}
+$("#btnI2").onclick=opConsultarAdeudos;
+
+/* Historial ver todo */
+function opVerTodo(){
+  const arr=Array.from(session.users.values());
+  if(!arr.length){log("No hay usuarios registrados.");return;}
+  log(`[${new Date().toLocaleString()}]`,"time");
+  log("Historial completo:");
+  arr.sort((a,b)=>b.overdueCount-a.overdueCount);
+  arr.forEach(u=>{
+    log(`ID: ${u.uid}`,"user");
+    log(`Nombre: ${u.nombre}`);
+    log(`Mail: ${u.mail}`);
+    log(`Adeudos: ${u.overdueCount}`);
+  });
+}
+$("#btnI3all").onclick=opVerTodo;
+
+/* Filtrar por ID */
+function opFiltrarPorId(){
+  const uid=$("#userId").value.trim();
+  if(!session.users.has(uid)){log("ID no encontrado.");return;}
+  const u=session.users.get(uid);
+  log(`[${new Date().toLocaleString()}]`,"time");
+  log(`ID: ${u.uid}`,"user");
+  log(`Nombre: ${u.nombre}`);
+  log(`Mail: ${u.mail}`);
+  log(`Adeudos: ${u.overdueCount}`);
+}
+$("#btnI3id").onclick=opFiltrarPorId;
+
+/* Validación email */
+function isValidEmail(email){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);}
+
+/* Enviar correo */
+function opEnviarCorreo(){
+ const uid=$("#userId").value.trim();if(!session.users.has(uid))return alert("Consultá primero un usuario.");
+ const u=session.users.get(uid);
+ const fecha=new Date().toLocaleDateString("es-UY",{day:"numeric",month:"long",year:"numeric"});
+ const detalle=u.items.map(it=>`• ${it.libro} – ${it.titulo} (${it.atraso} día(s) de atraso)`).join("\n");
+
+ if(!u.mail || !isValidEmail(u.mail)){
+   log(`[${new Date().toLocaleString()}]`,"time");
+   log(`❌ No se envió notificación: dirección de correo inválida (${u.mail})`);
+   session.invalidEmails.add(u.mail||"(vacío)");
+   return;
+ }
+ if(u.overdueCount===0){
+   log(`[${new Date().toLocaleString()}]`,"time");
+   log("No se envió notificación: sin adeudos.");
+   return;
+ }
+
+ emailjs.send("service_l5m3777","template_e1f0cci",{
+    to_email:u.mail,
+    nombre:u.nombre,
+    fecha:fecha,
+    adeudos:u.overdueCount,
+    detalle:detalle
+ }).then(
+   ()=>{log(`[${new Date().toLocaleString()}]`,"time");log(`✅ Correo REAL enviado a ${u.mail}`);},
+   ()=>{log(`[${new Date().toLocaleString()}]`,"time");log(`❌ Error envío real. Se simula.`);log(`Notificación simulada a ${u.mail}`);}
+ );
+}
+$("#btnMail").onclick=opEnviarCorreo;
+
+/* Exportar historial TXT */
+function opExportar(){
+ const now=new Date();
+ const lines=[];
+ lines.push("=== HISTORIAL DE SESIÓN ===");
+ lines.push(`Operador/a: ${session.user}`);
+ lines.push(`Fecha de exportación: ${now.toLocaleString()}`,"");
+
+ const arr=Array.from(session.users.values());
+ const conDeuda=arr.filter(u=>u.overdueCount>0).sort((a,b)=>b.overdueCount-a.overdueCount);
+ const sinDeuda=arr.filter(u=>u.overdueCount===0);
+ const sinReg=Array.from(session.searchedNoRecords);
+ const invalidMails=Array.from(session.invalidEmails);
+
+ lines.push("== USUARIOS CON ADEUDOS ==");if(!conDeuda.length)lines.push("Ninguno");
+ else conDeuda.forEach(u=>{
+   lines.push(`ID: ${u.uid}`);lines.push(`Nombre: ${u.nombre}`);lines.push(`Mail: ${u.mail}`);
+   lines.push(`Adeudos: ${u.overdueCount}`);
+   u.items.forEach(it=>lines.push(` • ${it.libro} – ${it.titulo} (${it.atraso} día(s) de atraso)`));
+   lines.push("");
+ });
+
+ lines.push("== USUARIOS SIN ADEUDOS ==");if(!sinDeuda.length)lines.push("Ninguno");
+ else sinDeuda.forEach(u=>{
+   lines.push(`ID: ${u.uid}`);lines.push(`Nombre: ${u.nombre}`);lines.push(`Mail: ${u.mail}`);lines.push("Adeudos: 0");lines.push("");
+ });
+
+ lines.push("== USUARIOS SIN REGISTROS ==");if(!sinReg.length)lines.push("Ninguno");else sinReg.forEach(id=>lines.push(`ID: ${id}`));lines.push("");
+
+ lines.push("== CORREOS INVÁLIDOS ==");if(!invalidMails.length)lines.push("Ninguno");else invalidMails.forEach(m=>lines.push(m));lines.push("");
+
+ lines.push("== TRAZA DE EVENTOS ==");session.trace.forEach(t=>lines.push(t));
+
+ const blob=new Blob([lines.join("\n")],{type:"text/plain"});const a=document.createElement("a");
+ a.href=URL.createObjectURL(blob);a.download="historial.txt";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
+}
+$("#btnI3txt").onclick=opExportar;
+
+/* Exportar morosos XLSX */
+function opDescargarMorosos(){
+  const conDeuda=Array.from(session.users.values()).filter(u=>u.overdueCount>0);
+  if(!conDeuda.length){alert("No hay morosos para exportar.");return;}
+  const cab=["ID","Nombre","Mail","Libro","Título","Atraso (días)"];
+  const filas=[];conDeuda.forEach(u=>{u.items.forEach(it=>filas.push([u.uid,u.nombre,u.mail,it.libro,it.titulo,it.atraso]));});
+  const ws=XLSX.utils.aoa_to_sheet([cab,...filas]);const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Morosos");
+  const xab=XLSX.write(wb,{bookType:"xlsx",type:"array"});
+  const blob=new Blob([xab],{type:"application/octet-stream"});const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="morosos.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
+}
+$("#btnXlsx").onclick=opDescargarMorosos;
+
+/* Agregar PRUEBA */
+function opAgregarPrueba(){
+  log(`[${new Date().toLocaleString()}]`,"time");
+  log("Registro de PRUEBA agregado al historial");
+  session.trace.push("PRUEBA agregada por operador");
+}
+$("#btnPrueba").onclick=opAgregarPrueba;
+
+/* Footer */
+$("#foot").textContent="InfoProg del Uruguay 2025 — "+new Date().toLocaleDateString();
+</script>
+</body>
+</html>
+
+Montevideo - Uruguay <!-- Info-Prog del Uruguay 2025 - Carlos Scardovi - 4-10-2025 -->
